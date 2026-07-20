@@ -2,7 +2,7 @@ import * as z from "zod";
 import { anthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
 import { NextResponse } from 'next/server'
-
+import { prisma } from '../../../lib/prisma'
 import {
   streamText,
   UIMessage,
