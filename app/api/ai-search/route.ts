@@ -12,15 +12,43 @@ import {
 } from 'ai';
 
 export async function POST(req: Request) {
-    const { question } = await req.json();  
-    const device = await prisma.device.findUnique({where: { assetTag: tag}})  
+    const { question } = await req.json();    
     const {object} = await generateObject({
         model: anthropic('claude-haiku-4-5'),
         prompt: question,
         system: "You extract search filters from questions about a school device inventory. Extract any device model, location, or year constraints mentioned — regardless of whether the question asks to list, count, or describe devices.",
         schema: schema
 }); 
-    const matches = filterDevices(devices, object)
+    const matches = await prisma.device.findMany({
+  where: {
+    ...(object.model && {
+      model: {
+        contains: object.model,
+        mode: "insensitive",
+      },
+    }),
+
+    ...(object.location && {
+      location: {
+        contains: object.location,
+        mode: "insensitive",
+      },
+    }),
+
+    ...(object.yearMin !== null || object.yearMax !== null
+      ? {
+          purchaseYear: {
+            ...(object.yearMin !== null && {
+              gte: object.yearMin,
+            }),
+            ...(object.yearMax !== null && {
+              lte: object.yearMax,
+            }),
+          },
+        }
+      : {}),
+  },
+});
     return NextResponse.json(matches)
 }
 const schema = z.object({
@@ -35,13 +63,13 @@ type Filters = {
   yearMin: number | null;
   yearMax: number | null;
 };
-function filterDevices(devices: Device[], filters: Filters) {
-  return devices.filter((d) => {
-    const modelOk    = filters.model === null || d.model.toLowerCase().includes(filters.model.toLowerCase());
-    const locationOk = filters.location === null || d.location.toLowerCase().includes(filters.location.toLowerCase());
-    const yearMinOk  = filters.yearMin === null || d.purchaseYear >= filters.yearMin;
-    const yearMaxOk  = filters.yearMax === null || d.purchaseYear <= filters.yearMax;
+// function filterDevices(devices: Device[], filters: Filters) {
+//   return devices.filter((d) => {
+//     const modelOk    = filters.model === null || d.model.toLowerCase().includes(filters.model.toLowerCase());
+//     const locationOk = filters.location === null || d.location.toLowerCase().includes(filters.location.toLowerCase());
+//     const yearMinOk  = filters.yearMin === null || d.purchaseYear >= filters.yearMin;
+//     const yearMaxOk  = filters.yearMax === null || d.purchaseYear <= filters.yearMax;
 
-    return modelOk && locationOk && yearMinOk && yearMaxOk;
-  });
-}
+//     return modelOk && locationOk && yearMinOk && yearMaxOk;
+//   });
+// }
